@@ -1,95 +1,95 @@
-id1 = {}
-id_cnt = 0
+import os
+from pathlib import Path
+from typing import Any, Mapping, Union
 
-# dat[사용자ID][요일]
-dat = [[0] * 100 for _ in range(100)]
-points = [0] * 100
-grade = [0] * 100
-names = [''] * 100
-wed = [0] * 100
-weeken = [0] * 100
 
-def input2(w, wk):
-    global id_cnt
+FILENAME = "attendance_weekday_500.txt"
+TRAINING_DAYS = ["wednesday"]
+MATCH_DAYS = ["saturday", "sunday"]
 
-    if w not in id1:
-        id_cnt += 1
-        id1[w] = id_cnt
-        names[id_cnt] = w
 
-    id2 = id1[w]
+def read_input_file(filename: Union[Path, str]) -> Mapping[str, Any]:
+    if not os.path.exists(filename):
+        raise FileNotFoundError(f"No filename of {filename}")
 
-    add_point = 0
-    index = 0
+    with open(filename, encoding="utf-8") as f:
+        lines = f.readlines()
 
-    if wk == "monday":
-        index = 0
-        add_point += 1
-    elif wk == "tuesday":
-        index = 1
-        add_point += 1
-    elif wk == "wednesday":
-        index = 2
-        add_point += 3
-        wed[id2] += 1
-    elif wk == "thursday":
-        index = 3
-        add_point += 1
-    elif wk == "friday":
-        index = 4
-        add_point += 1
-    elif wk == "saturday":
-        index = 5
-        add_point += 2
-        weeken[id2] += 1
-    elif wk == "sunday":
-        index = 6
-        add_point += 2
-        weeken[id2] += 1
+    data: Mapping[str, Any] = dict()
+    count_id = 1
 
-    dat[id2][index] += 1
-    points[id2] += add_point
+    for line in lines:
+        name, day = line.strip().split(" ")
+        if name not in data:
+            table = {
+                "ID": count_id,
+                "DAYS": [day],
+                "GRADE": None,
+                "SCORE": None,
+            }
+            data[name] = table
+            count_id += 1
+            continue
 
-def input_file():
-    try:
-        with open("attendance_weekday_500.txt", encoding='utf-8') as f:
-            for _ in range(500):
-                line = f.readline()
-                if not line:
-                    break
-                parts = line.strip().split()
-                if len(parts) == 2:
-                    input2(parts[0], parts[1])
+        data[name]["DAYS"].append(day)
 
-        for i in range(1, id_cnt + 1):
-            if dat[i][2] > 9:
-                points[i] += 10
-            if dat[i][5] + dat[i][6] > 9:
-                points[i] += 10
+    return data
 
-            if points[i] >= 50:
-                grade[i] = 1
-            elif points[i] >= 30:
-                grade[i] = 2
-            else:
-                grade[i] = 0
+def add_score(name_to_table: Mapping[str, Any]) -> Mapping[str, Any]:
+    for name, table in name_to_table.items():
+        days = table["DAYS"]
+        score = 0
+        for day in days:
+            score += 1
+            if day in TRAINING_DAYS:
+                score +=  2
+            if day in MATCH_DAYS:
+                score += 1
 
-            print(f"NAME : {names[i]}, POINT : {points[i]}, GRADE : ", end="")
-            if grade[i] == 1:
-                print("GOLD")
-            elif grade[i] == 2:
-                print("SILVER")
-            else:
-                print("NORMAL")
+        if len([day for day in days if day in TRAINING_DAYS]) >= 10:
+            score += 10
+        if len([day for day in days if day in MATCH_DAYS]) >= 10:
+            score += 10
 
-        print("\nRemoved player")
-        print("==============")
-        for i in range(1, id_cnt + 1):
-            if grade[i] not in (1, 2) and wed[i] == 0 and weeken[i] == 0:
-                print(names[i])
+        name_to_table[name]["SCORE"] = score
+        if score < 30:
+            grade = "NORMAL"
+        elif 30 <= score < 50:
+            grade = "SILVER"
+        else:
+            grade = "GOLD"
 
-    except FileNotFoundError:
-        print("파일을 찾을 수 없습니다.")
+        name_to_table[name]["GRADE"] = grade
+
+    return name_to_table
+
+def report(name_to_table: Mapping[str, Any]) -> None:
+    max_id = max([table["ID"] for _, table in name_to_table.items()])
+    removed = []
+    for id_ in range(1, max_id + 1):
+        name = [n for n, table in name_to_table.items() if table["ID"] == id_][0]
+        table = [table for n, table in name_to_table.items() if table["ID"] == id_][0]
+        point = table["SCORE"]
+        grade = table["GRADE"]
+        print(f"NAME : {name}, POINT : {point}, GRADE : {grade}")
+
+        days = table["DAYS"]
+        condition = (
+            (grade == "NORMAL")
+            and not [day for day in days if day in TRAINING_DAYS + MATCH_DAYS]
+        )
+        if condition:
+            removed.append(name)
+
+    print("\nRemoved player")
+    print("==============")
+    for r in removed:
+        print(r)
+
+
 
 if __name__ == "__main__":
-    input_file()
+    name_to_table = read_input_file(FILENAME)
+    name_to_table = add_score(name_to_table)
+    report(name_to_table)
+    print("")
